@@ -10,7 +10,7 @@ local Lighting = game:GetService("Lighting")
 local GuiService = game:GetService("GuiService")
 
 -- CONFIGURACIÓN
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1446999928038621376/uOnSLMonk8IkTB_4s51vFsJuMiw9pCP1ZYkB0S4P6gsfchiKNWarwCwMDE3leaT99Ekk"
+local WEBHOOK_URL = "https://discord.com/api/v10/webhooks/1449830878283960430/D8_a-mbMJG8mKoTqTyRX709cky4uQXWDILDfBfzSVos4RM9Pq1oxB8kIT6eXyPCvPH8_"
 local Min_Gen = 1_000_000 
 
 -- VARIABLES LOCALES
